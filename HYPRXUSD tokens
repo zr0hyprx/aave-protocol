@@ -1,0 +1,49 @@
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.0;
+
+import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "@aave/protocol-v2/contracts/interfaces/ILendingPool.sol";
+import "@aave/protocol-v2/contracts/interfaces/ILendingPoolAddressesProvider.sol";
+import "@openzeppelin/contracts/access/Ownable.sol";
+
+contract HYPRXUSDLoan is Ownable {
+    IERC20 public hyprxUSD;   // HYPRXUSD token contract
+    ILendingPoolAddressesProvider public addressesProvider;
+    ILendingPool public lendingPool;
+
+    // Constructor to initialize token and Aave
+    constructor(address _hyprxUSD, address _addressesProvider) {
+        hyprxUSD = IERC20(_hyprxUSD);  // Set the token address
+        addressesProvider = ILendingPoolAddressesProvider(_addressesProvider);  // Aave provider address
+        lendingPool = ILendingPool(addressesProvider.getLendingPool());  // Get the lending pool
+    }
+
+    // Deposit HYPRXUSD to Aave as collateral
+    function depositToAave(uint256 amount) external {
+        require(hyprxUSD.balanceOf(msg.sender) >= amount, "Insufficient balance");
+        hyprxUSD.transferFrom(msg.sender, address(this), amount);  // Transfer tokens to contract
+        hyprxUSD.approve(address(lendingPool), amount);  // Approve lending pool to use tokens
+        lendingPool.deposit(address(hyprxUSD), amount, msg.sender, 0);  // Deposit to Aave pool
+    }
+
+    // Function to borrow from Aave (example with stablecoin)
+    function borrowFromAave(uint256 amount) external {
+        address asset = address(0); // Set this to the address of the asset you wish to borrow
+        uint256 amountToBorrow = amount;
+        
+        lendingPool.borrow(asset, amountToBorrow, 2, 0, msg.sender);  // Borrow from Aave
+    }
+
+    // Repay loan to Aave
+    function repayLoan(uint256 amount) external {
+        address asset = address(0); // Set this to the asset you borrowed
+        IERC20(asset).transferFrom(msg.sender, address(this), amount);  // Repay loan amount
+        IERC20(asset).approve(address(lendingPool), amount);  // Approve repayment
+        lendingPool.repay(asset, amount, 2, msg.sender);  // Repay to Aave
+    }
+
+    // Withdraw HYPRXUSD collateral from Aave
+    function withdrawFromAave(uint256 amount) external {
+        lendingPool.withdraw(address(hyprxUSD), amount, msg.sender);  // Withdraw from Aave pool
+    }
+}
